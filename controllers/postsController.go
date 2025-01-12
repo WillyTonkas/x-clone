@@ -85,7 +85,6 @@ func ViewSpecificPost(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
 	}
 
 	post, getPostError := user.GetPostByID(db, uint(postID))
-
 	if getPostError != nil {
 		http.Error(w, "Failed to get post", http.StatusNotFound)
 		return
@@ -129,14 +128,47 @@ func EditPost(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
 	}
 
 	post.Body = newBody
-	saveBodyErr := db.Save(&post).Error
-	if saveBodyErr != nil {
+	if db.Save(&post).Error != nil {
 		http.Error(w, "Failed to update post", http.StatusInternalServerError)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("Post updated successfully"))
+}
+
+func DeletePost(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
+	postIDStr := r.PathValue("postid")
+	postID, getIDError := user.GetPostIDFromURL(postIDStr, r, w)
+
+	if getIDError != nil {
+		if getIDError.Error() == constants.ERRMISSINGPOSTID {
+			http.Error(w, "Missing 'postid' parameter", http.StatusBadRequest)
+		} else {
+			http.Error(w, "Invalid postid", http.StatusBadRequest)
+		}
+		return
+	}
+
+	post, getPostErr := user.GetPostByID(db, postID)
+	if getPostErr != nil {
+		http.Error(w, "Failed to get post", http.StatusNotFound)
+		return
+	}
+
+	if deleteErr := db.Delete(&post).Error; deleteErr != nil {
+		http.Error(w, "Failed to delete post", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("Post deleted successfully"))
+}
+
+var DeletePostEndpoint = models.Endpoint{
+	Method:          models.DELETE,
+	Path:            constants.BASEURL + "posts/{postid}/delete",
+	HandlerFunction: DeletePost,
 }
 
 var EditPostEndpoint = models.Endpoint{

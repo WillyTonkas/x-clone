@@ -77,6 +77,40 @@ func ToggleLike(db *gorm.DB, userID uint, parentID uint) error {
 	return nil
 }
 
+func SearchUserByUsername(db *gorm.DB, username string) ([]models.User, error) {
+	var users []models.User
+	result := db.Where("Username LIKE ?", username).First(&users)
+	if result.RowsAffected == 0 {
+		return nil, errors.New(constants.ERRNOUSER)
+	}
+	return users, nil
+}
+
+func SearchPostsByKeywords(db *gorm.DB, keyword string) ([]models.Post, error) {
+	var posts []models.Post
+	result := db.Where("Body ILIKE ?", "%"+keyword+"%").Find(&posts)
+	if result.RowsAffected == 0 {
+		return nil, fmt.Errorf(constants.ERRNOPOST+" keyword used: %s", keyword)
+	}
+	return posts, nil
+}
+
+func CreatePost(db *gorm.DB, userID uint, parentID *uint, quoteID *uint, body string) error {
+	if !userExists(db, userID) {
+		return errors.New(constants.ERRNOUSER)
+	}
+	post := models.Post{
+		UserID:   userID,
+		ParentID: parentID,
+		Quote:    quoteID,
+		Body:     body,
+	}
+
+	return db.Create(&post).Error
+}
+
+// AUX.
+
 func MailAlreadyUsed(db *gorm.DB, mail string) bool {
 	var user models.User
 	err := db.Where("Mail = ?", mail).First(&user).Error
@@ -119,48 +153,28 @@ func ValidateCredentials(db *gorm.DB, inputUser, password string) bool {
 	return true
 }
 
-func queryUserByField(db *gorm.DB, field, value, password string, user *models.User) error {
-	return db.Where(fmt.Sprintf("%s = ? AND Password = ?", field), value, password).First(user).Error
-}
-
 func IsEmail(email string) bool {
 	re := regexp.MustCompile(constants.EMAILREGEXPATTERNS)
 	return re.MatchString(email)
 }
 
-func SearchUserByUsername(db *gorm.DB, username string) ([]models.User, error) {
-	var users []models.User
-	result := db.Where("Username LIKE ?", username).First(&users)
-	if result.RowsAffected == 0 {
-		return nil, errors.New(constants.ERRNOUSER)
+func GetPostByID(db *gorm.DB, postID uint) (models.Post, error) {
+	var post models.Post
+	err := db.Where("id = ?", postID).First(&post).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return post, errors.New(constants.ERRNOPOST)
+
+	} else if err != nil {
+		log.Printf("Error querying post by id: %v", err)
+		return post, errors.New(constants.ERRNOPOST)
 	}
-	return users, nil
+
+	return post, nil
 }
 
-func SearchPostsByKeywords(db *gorm.DB, keyword string) ([]models.Post, error) {
-	var posts []models.Post
-	result := db.Where("Body ILIKE ?", "%"+keyword+"%").Find(&posts)
-	if result.RowsAffected == 0 {
-		return nil, fmt.Errorf(constants.ERRNOPOST+" keyword used: %s", keyword)
-	}
-	return posts, nil
+func queryUserByField(db *gorm.DB, field, value, password string, user *models.User) error {
+	return db.Where(fmt.Sprintf("%s = ? AND Password = ?", field), value, password).First(user).Error
 }
-
-func CreatePost(db *gorm.DB, userID uint, parentID *uint, quoteID *uint, body string) error {
-	if !userExists(db, userID) {
-		return errors.New(constants.ERRNOUSER)
-	}
-	post := models.Post{
-		UserID:   userID,
-		ParentID: parentID,
-		Quote:    quoteID,
-		Body:     body,
-	}
-
-	return db.Create(&post).Error
-}
-
-// AUX.
 
 func alreadyFollows(db *gorm.DB, followingUserID, followedUserID uint) bool {
 	return db.Model(models.Follow{}).

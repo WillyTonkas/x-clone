@@ -1,6 +1,8 @@
 package controllers
 
 import (
+	"encoding/json"
+	"fmt"
 	"gorm.io/gorm"
 	"main/constants"
 	"main/models"
@@ -19,6 +21,7 @@ func CreatePostHandler(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
 	parentIDStr := r.FormValue("parent")
 	quoteIDStr := r.FormValue("quote")
 	body := r.FormValue("body")
+	fmt.Println(body)
 
 	if body == constants.EMPTY {
 		http.Error(w, "Body cannot be empty", http.StatusBadRequest)
@@ -42,7 +45,7 @@ func CreatePostHandler(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
 		parentID = &tempParentID
 	}
 
-	if quoteIDStr != "" {
+	if quoteIDStr != constants.EMPTY {
 		parsedQuoteID, parsedErr := strconv.ParseUint(quoteIDStr, 10, 32)
 		if parsedErr != nil {
 			http.Error(w, "Invalid quote ID", http.StatusBadRequest)
@@ -66,6 +69,44 @@ func CreatePostHandler(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
 	if err != nil {
 		return
 	}
+}
+
+func ViewSpecificPost(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
+	pathID := r.PathValue("postid")
+	if pathID == constants.EMPTY {
+		http.Error(w, "Missing 'postid' parameter", http.StatusBadRequest)
+		return
+	}
+
+	postID, errorParse := strconv.ParseUint(pathID, 10, 32)
+	if errorParse != nil {
+		http.Error(w, "Invalid postid", http.StatusBadRequest)
+		return
+	}
+
+	post, getPostError := user.GetPostByID(db, uint(postID))
+
+	if getPostError != nil {
+		http.Error(w, "Failed to get post", http.StatusNotFound)
+		return
+	}
+
+	response, marshalErr := json.Marshal(post)
+	if marshalErr != nil {
+		http.Error(w, "Failed to serialize response", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(response)
+
+}
+
+var ViewSpecificPostEndpoint = models.Endpoint{
+	Method:          models.GET,
+	Path:            constants.BASEURL + "posts/{postid}",
+	HandlerFunction: ViewSpecificPost,
 }
 
 var CreatePostEndpoint = models.Endpoint{

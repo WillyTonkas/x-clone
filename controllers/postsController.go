@@ -72,15 +72,15 @@ func CreatePostHandler(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
 }
 
 func ViewSpecificPost(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
-	pathID := r.PathValue("postid")
-	if pathID == constants.EMPTY {
-		http.Error(w, "Missing 'postid' parameter", http.StatusBadRequest)
-		return
-	}
+	postIDStr := r.PathValue("postid")
+	postID, getIDError := user.GetPostIDFromURL(postIDStr, r, w)
 
-	postID, errorParse := strconv.ParseUint(pathID, 10, 32)
-	if errorParse != nil {
-		http.Error(w, "Invalid postid", http.StatusBadRequest)
+	if getIDError != nil {
+		if getIDError.Error() == constants.ERRMISSINGPOSTID {
+			http.Error(w, "Missing 'postid' parameter", http.StatusBadRequest)
+		} else {
+			http.Error(w, "Invalid postid", http.StatusBadRequest)
+		}
 		return
 	}
 
@@ -101,6 +101,48 @@ func ViewSpecificPost(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(response)
 
+}
+
+func EditPost(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
+	postIDStr := r.PathValue("postid")
+	postID, getIDError := user.GetPostIDFromURL(postIDStr, r, w)
+
+	if getIDError != nil {
+		if getIDError.Error() == constants.ERRMISSINGPOSTID {
+			http.Error(w, "Missing 'postid' parameter", http.StatusBadRequest)
+		} else {
+			http.Error(w, "Invalid postid", http.StatusBadRequest)
+		}
+		return
+	}
+
+	newBody := r.FormValue("body")
+	if newBody == constants.EMPTY {
+		http.Error(w, "Body cannot be empty", http.StatusBadRequest)
+		return
+	}
+
+	post, getPostErr := user.GetPostByID(db, postID)
+	if getPostErr != nil {
+		http.Error(w, "Failed to get post", http.StatusNotFound)
+		return
+	}
+
+	post.Body = newBody
+	saveBodyErr := db.Save(&post).Error
+	if saveBodyErr != nil {
+		http.Error(w, "Failed to update post", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("Post updated successfully"))
+}
+
+var EditPostEndpoint = models.Endpoint{
+	Method:          models.PUT,
+	Path:            constants.BASEURL + "posts/{postid}/edit",
+	HandlerFunction: EditPost,
 }
 
 var ViewSpecificPostEndpoint = models.Endpoint{

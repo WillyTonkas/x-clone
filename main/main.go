@@ -107,6 +107,10 @@ func startServer() {
 		controllers.ViewSpecificPostEndpoint.HandlerFunction(writer, request, db)
 	})
 
+	http.HandleFunc(controllers.EditPostEndpoint.Path, func(writer http.ResponseWriter, request *http.Request) {
+		controllers.EditPostEndpoint.HandlerFunction(writer, request, db)
+	})
+
 	serverPort := os.Getenv("SERVER_PORT")
 	if serverPort == constants.EMPTY {
 		log.Panic("serverPort environment variable is not set")

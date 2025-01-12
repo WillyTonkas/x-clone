@@ -7,7 +7,9 @@ import (
 	"log"
 	"main/constants"
 	"main/models"
+	"net/http"
 	"regexp"
+	"strconv"
 )
 
 func CreateAccount(db *gorm.DB, username, password, mail string, location *string) error {
@@ -170,6 +172,20 @@ func GetPostByID(db *gorm.DB, postID uint) (models.Post, error) {
 	}
 
 	return post, nil
+}
+
+func GetPostIDFromURL(url string, r *http.Request, w http.ResponseWriter) (uint, error) {
+	pathID := r.PathValue("postid")
+	if pathID == constants.EMPTY {
+		return 0, errors.New("Missing 'postid' parameter")
+	}
+
+	postID, errorParse := strconv.ParseUint(pathID, 10, 32)
+	if errorParse != nil {
+		return 0, errors.New("Invalid postid")
+	}
+
+	return uint(postID), nil
 }
 
 func queryUserByField(db *gorm.DB, field, value, password string, user *models.User) error {
